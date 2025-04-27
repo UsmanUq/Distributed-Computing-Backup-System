@@ -62,7 +62,5 @@
 | File Upload | User Client → Master → Storage Nodes |
 | Replication | Master picks 2-3 Storage Nodes |
 | Metadata Management | Master stores mapping in Python dictionary |
-| Fault tolerance (basic) | Detect if a Storage Node is offline (optional bonus) |
-| Simple CLI | Run from terminal, no GUI needed |
-
+| Fault tolerance (basic) | Detect if a Storage Node is offline |
 ---
