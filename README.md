@@ -1,66 +1,124 @@
-# Distributed-Computing-Backup-System
+# Distributed File Storage System (Master + Storage Nodes + Client)
 
-- **Server = Master Node** (small server running with `socketserver` or manual `socket` handling)
-- **Clients = Storage Nodes + User Client** (simple Python scripts that connect and send/receive files)
-- **Metadata = Simple dictionary in memory** (no DB needed, or use SQLite if you want to be fancy)
+## 📌 Overview
+
+This is a basic distributed file storage system built with Python's `socket` and `threading` libraries. It consists of:
+
+- A **Master Node** that coordinates storage and metadata.
+- Multiple **Storage Nodes** that store files.
+- A **Client** that can upload files and list available files.
 
 ---
 
-# 📜 Very Simple Plan
+## 🧠 Architecture
 
-### Architecture
 ```
-[User Client] 
-    ↓ (uploads file via socket)
-[Master Node] 
-    ↙︎           ↘︎
-[Storage Node 1]  [Storage Node 2]
+     [Client] ---> [Master Node] ---> [Storage Node 1]
+                   |              ---> [Storage Node 2]
+                   |              ---> [Storage Node 3]
+                   ...
 ```
-- **User client** connects to **master** and sends a file.
-- **Master** decides which **Storage Nodes** to send the file to.
-- **Master** keeps a small in-memory mapping like:
-  ```python
-  metadata = {
-    "my_resume.pdf": ["Node1", "Node2"]
-  }
-  ```
-- **Replication**: Send same file to 2 or 3 storage nodes.
+
+- The **Client** connects to the Master Node to upload a file or list available files.
+- The **Master Node** stores metadata and sends file data to two connected storage nodes.
+- **Storage Nodes** register themselves with the Master and store file data sent by the Master.
 
 ---
 
-# 🛠️ Technologies
-- **Python 3.x**
-- `socket` module
-- maybe `threading` for handling multiple connections
-- VSCode with `.ipynb` is okay too (but sockets work better in `.py` files if needed)
+## ✅ Current Features
+
+### 1. Upload File
+- Client sends: `UPLOAD filename filesize`
+- Master receives the file and stores it on **two available storage nodes**.
+- Master updates metadata with storage locations for future retrieval.
+- Acknowledgment is sent back to the client.
+
+### 2. Register Storage Nodes
+- A storage node sends: `STORAGE_NODE port`
+- Master registers the node using the sender’s IP and given port.
+- The node is now eligible to receive files from the Master.
+
+### 3. List Files (Client)
+- Client sends: `LIST`
+- Master returns all uploaded filenames with the IP/Port of the storage nodes where each file is stored.
 
 ---
 
-# 🚀 Example Mini Architecture (Simple Socket Flow)
+## 🗃 Metadata Structure (in Master)
 
-### 1. **Master Node (Server)**
-- Listens for connections from **clients** (User Client, Storage Nodes)
-- Handles simple commands like:
-  - `"STORE filename filesize"`
-  - `"RETRIEVE filename"`
-  - `"NODE_HEARTBEAT"`
-
-### 2. **Storage Node (Server)**
-- Listens for file uploads from **Master**.
-- Stores files locally (in a `storage/` folder).
-
-### 3. **Client (Uploader)**
-- Connects to **Master**.
-- Asks to store a file (uploads file).
+```python
+file_metadata = {
+    'example.txt': [
+        ('192.168.1.5', 5001),
+        ('192.168.1.6', 5002)
+    ]
+}
+```
 
 ---
 
-# 📦 Minimum Features You Can Implement
+## 🖥 Terminal Workflow
 
-| Feature | How | 
-|:--------|:----|
-| File Upload | User Client → Master → Storage Nodes |
-| Replication | Master picks 2-3 Storage Nodes |
-| Metadata Management | Master stores mapping in Python dictionary |
-| Fault tolerance (basic) | Detect if a Storage Node is offline |
+### 🔸 Start Storage Nodes
+
+```bash
+python storage_node.py 5001
+python storage_node.py 5002
+python storage_node.py 5003
+```
+
+Each storage node registers with the master on launch.
+
+### 🔹 Start Master Node
+
+```bash
+python master_node.py
+```
+
+The master listens for storage nodes and clients on port 5000.
+
+### 🔸 Start Client
+
+```bash
+python client.py
+```
+
+You can now:
+- Upload a file (`upload filename.txt`)
+- List available files (`list`)
+- Exit the client (`exit`)
+
+> The client terminal remains active to accept multiple commands without restarting.
+
 ---
+
+## 🚧 To-Do (Planned)
+
+- [ ] Add **file chunking** (split file into parts).
+- [ ] Store each chunk **redundantly** across multiple nodes.
+- [ ] Add **file download** and **recovery** from chunks.
+- [ ] Use **hashes** to verify chunk integrity.
+- [ ] Auto-repair chunks on node failure.
+
+---
+
+## 📁 Folder Structure
+
+```
+distributed_storage/
+│
+├── master_node.py        # Coordinates storage and metadata
+├── storage_node.py       # Stores uploaded files
+├── client.py             # Uploads and lists files
+├── README.md             # You are here
+```
+
+---
+
+## 🧑‍💻 Author
+
+Developed by [UsmanUq] as part of a distributed systems learning project.
+
+---
+
+Let me know if you’d like a logo, project badge, or repo description snippet!
