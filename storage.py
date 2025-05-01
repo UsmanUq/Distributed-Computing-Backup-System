@@ -3,51 +3,56 @@ import threading
 import os
 import argparse
 
-# Parse command-line arguments
 def parse_args():
     parser = argparse.ArgumentParser(description="Storage Node")
-    parser.add_argument('--port', type=int, required=True, help="Port number for the storage node")
+    parser.add_argument('--port', type=int, required=True)
     return parser.parse_args()
 
-# Settings
-HOST = '0.0.0.0'  # Listen on all interfaces
+HOST = '0.0.0.0'
 
-# Storage folder
-STORAGE_FOLDER = 'storage_data'
-
-# Create storage folder if it doesn't exist
-if not os.path.exists(STORAGE_FOLDER):
-    os.makedirs(STORAGE_FOLDER)
-
-# Handle client connection
-def handle_client(conn, addr):
+def handle_client(conn, addr, storage_folder):
     print(f"[+] Connection from {addr}")
 
-    try:
-        # Receive filename
-        filename = conn.recv(1024).decode()
-        if not filename:
-            print("[-] No filename received")
-            return
-        
-        filepath = os.path.join(STORAGE_FOLDER, filename)
-        
-        # Receive file data
-        with open(filepath, 'wb') as f:
-            while True:
-                data = conn.recv(4096)
-                if not data:
+    header = b""
+    while not header.endswith(b"\n"):
+        header += conn.recv(1)
+    header = header.decode().strip()
+    print(f"[DEBUG] Header received: {header}")
+
+    if header.startswith("STORE"):
+        _, filename, filesize = header.strip().split()
+        filesize = int(filesize)
+
+        filepath = os.path.join(storage_folder, filename)
+        with open(filepath, "wb") as f:
+            received = 0
+            while received < filesize:
+                chunk = conn.recv(min(4096, filesize - received))
+                if not chunk:
                     break
-                f.write(data)
+                f.write(chunk)
+                received += len(chunk)
 
-        print(f"[+] Stored file: {filename}")
-    except Exception as e:
-        print(f"[-] Error: {e}")
-    finally:
-        conn.close()
+        conn.sendall(b"STORED\n")
+        print(f"[+] Stored file: {filename} at {filepath}")
+    else:
+        print(f"[-] Unexpected command: {header}")
 
-# Start the server
+    conn.close()
+
 def start_server(port):
+    storage_folder = f"storage_data_node_{port}"
+    os.makedirs(storage_folder, exist_ok=True)
+
+    # Notify master
+    try:
+        master_conn = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        master_conn.connect(('127.0.0.1', 5000))
+        master_conn.sendall(f"STORAGE_NODE {port}\n".encode())
+        master_conn.close()
+    except Exception as e:
+        print(f"[!] Could not register with master: {e}")
+
     server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server_socket.bind((HOST, port))
     server_socket.listen(5)
@@ -55,20 +60,17 @@ def start_server(port):
 
     while True:
         conn, addr = server_socket.accept()
-        client_thread = threading.Thread(target=handle_client, args=(conn, addr)).start()
-        client_thread.start()
+        threading.Thread(target=handle_client, args=(conn, addr, storage_folder)).start()
 
-# Main function
-if __name__ == "__main__":
-    args = parse_args()
-    start_server(args.port)
-
-def command_listener():
+def command_listener(port):
+    folder = f"storage_data_node_{port}"
     while True:
         cmd = input()
         if cmd.strip().lower() == "status":
-            files = os.listdir('storage_data')
+            files = os.listdir(folder)
             print("Files stored:", files)
 
-threading.Thread(target=command_listener, daemon=True).start()
-
+if __name__ == "__main__":
+    args = parse_args()
+    threading.Thread(target=command_listener, args=(args.port,), daemon=True).start()
+    start_server(args.port)
