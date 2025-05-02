@@ -22,13 +22,13 @@ def handle_client(conn, addr, data):
                     break
                 file_content += chunk
 
-            if len(storage_nodes) < 10:
+            if len(storage_nodes) < 2:
                 print("[-] Not enough storage nodes connected!")
                 conn.sendall(b"UPLOAD_FAILED: Not enough storage nodes\n")
                 conn.close()
                 return
 
-            selected_nodes = storage_nodes[:10]
+            selected_nodes = storage_nodes[:2]
             file_metadata[filename] = selected_nodes
 
             for i, (node_ip, node_port) in enumerate(selected_nodes):
